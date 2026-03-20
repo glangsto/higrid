@@ -157,7 +157,7 @@ def read_hot( names, ave_hot, doScaleAve):
         sys.exit()
     return ave_hot, minel, maxel, minGlat, maxGlat
     # end of read_hot
-    
+   
 def read_angles( names, lowel):
     """
     read_angles() reads all files and counts number of files with
@@ -290,9 +290,9 @@ def compute_gain( hv, cv, xa0, xa, xb, xbe, thot, tcold):
     thot, tcold are hot and cold load estimates (Kelvins)
 
     """
-    nData = len(hv)
-    nData = min(nData, len(cv))
+    nData = min(len(hv), len(cv))
     gainHC = np.zeros(nData)
+    print("HotCold: %d %d" % (len(hv), len(cv)))
     for iii in range(nData):
         gainHC[iii] = (hv[iii] - cv[iii])/(thot - tcold)
         if gainHC[iii] < EPSILON:
@@ -329,6 +329,8 @@ def compute_gain( hv, cv, xa0, xa, xb, xbe, thot, tcold):
     gainB = np.median(gain[xb:xbe])
     gainAve = 2.0/(gainA + gainB)  # Report gain in K per Count
 
+    print("HotCold Gain: %d" % (len(gain)))
+    
     return gain, gainAve, tRxMiddle, tRms, tStdA, tStdB
 
 def flagCenter( tsky, nData):
