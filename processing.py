@@ -84,7 +84,7 @@ def topo_freq_to_lsr_velocity(freq_topo_mhz, ra_deg, dec_deg, obstime,
                               telescope_location, rest_freq):
     sky = SkyCoord(ra=ra_deg * u.deg, dec=dec_deg * u.deg, frame="icrs")
     v_corr = sky.radial_velocity_correction(
-        kind="lsrk", obstime=obstime, location=telescope_location
+        kind="barycentric", obstime=obstime, location=telescope_location
     ).to(u.km/u.s)
 
     nu_topo = freq_topo_mhz * u.MHz

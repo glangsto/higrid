@@ -40,15 +40,15 @@ def parse_args():
         description="Grid spectral line observations into a spectral cube."
     )
 
-    parser.add_argument("--freq-min", type=float, default=1419.75,
+    parser.add_argument("--freq-min", type=float, default=1418.90,
                         help="Minimum topocentric frequency (MHz)")
-    parser.add_argument("--freq-max", type=float, default=1422.75,
+    parser.add_argument("--freq-max", type=float, default=1423.00,
                         help="Maximum topocentric frequency (MHz)")
-    parser.add_argument("--vel-min", type=float, default = -200.,
+    parser.add_argument("--vel-min", type=float, default = -300.,
                         help="Minimum velocity (km/sec)")
-    parser.add_argument("--vel-max", type=float, default = +200.,
+    parser.add_argument("--vel-max", type=float, default = +300.,
                         help="Maximum velocity (km/sec)")
-    parser.add_argument("--nchan", type=int, default=50,
+    parser.add_argument("--nchan", type=int, default=60,
                         help="Number of spectral channels")
 
     parser.add_argument("--hot", type=str,
@@ -112,12 +112,15 @@ def main():
     """
     args = parse_args()
 
+    # create the output frequency axis
     freq_axis_topo = np.linspace(args.freq_min, args.freq_max,
                                  args.nchan) * u.MHz
     n_freq = len( freq_axis_topo)
-    
+
+    # add units to rest frequency
     rest_freq = args.rest_freq * u.MHz
 
+    # processCount is used for periodic printouts
     processCount = 0
     
     print("frequncies, min, max, ref: %.6f, %.6f, %.6f" %
@@ -204,7 +207,7 @@ def main():
             cold.read_spec_ast(afile)
             cv = cold.ydataA/cold.nave
             nin= len(cv)
-            print("Reading first file: nChan = %d" % nchan)
+            print("Reading first file: nChan = %d" % nin)
             # if no hot+cold, then gains are unity
             gains = np.zeros_like(cv) + 1.
             # in this case the first spectra will be the reference
@@ -217,7 +220,13 @@ def main():
     # if here was able to read a file
     nin = len(cv)
     nc = int(nin/2)
-    
+    nhot = len(hv)
+    if nin != nhot:
+        print("Hot and Cold Spectral length miss match %d != %d" % (nhot, nin))
+        exit()
+    else:
+        print("Hot and Cold Spectral length: %d" % (nhot))
+        
     # now compute ranges for baseline calc. ignore 10% on each end
     xa0 = int(nin/10)
     xa = 2*xa0
@@ -246,7 +255,7 @@ def main():
         vel, xa0, xa, xb, xbe = hotcold.velocity_indecies( cold, 25,
                                                            args.vel_max,
                                                            args.vel_min)
-        
+        print("NVel: %d" % (len(vel)))
         print("Indicies for baseline: %d - %d and %d - %d" %
               (xa0, xa, xb, xbe))
         print("velocities: %d: %.3f" % (xa0, vel[xa0]))
@@ -264,14 +273,14 @@ def main():
         print("Calibration tRx: %.3f +/- %.3f" % (tRxMiddle, tRms))
         # will mutiply by 1 over gain
         gains = 1./gains
-        
+    print("Gain Length: %d" % (len(gains)))
+    
     print("gains: %d: %.3f" % (xa0, gains[xa0]))
     print("gains: %d: %.3f" % (xa, gains[xa]))
     print("gains: %d: %.3f" % (nc, gains[nc]))
     print("gains: %d: %.3f" % (xb, gains[xb]))
     print("gains: %d: %.3f" % (xbe, gains[xbe]))
 
-    
     # prepare to write a data cube.
     w = WCS(naxis=3)
 
@@ -294,6 +303,7 @@ def main():
         cunit3 = "km/s"
         crval3 = vel_axis_kms[0]
         cdelt3 = vel_axis_kms[1] - vel_axis_kms[0]
+        print("Ref Vel: %.3f  (delta: %.3f)" % (crval3, cdelt3))
     else:
         ctype3 = "FREQ"
         cunit3 = "MHz"
@@ -308,6 +318,7 @@ def main():
     w.wcs.cdelt = [-args.pix, args.pix, cdelt3]
     w.wcs.crpix = [int(n_ra/2.), int(n_dec/2.), 1]
 #    w.wcs.latpole = 90.
+#    w.wcs.naxis = 3
     
     naxis = np.zeros(3)
     naxis[0] = n_ra
@@ -377,7 +388,17 @@ def main():
 
 
     hdu = fits.PrimaryHDU(cube_data, header=w.to_header())
-    hdu.writeto( args.output_cube, overwrite=True)
+    
+    # 3. Add WCS/Units information to the header
+    header = hdu.header
+    header['BUNIT'] = ('K', 'Physical unit of data')
+    header['CTYPE3'] = ('VELO-LSR', 'Velocity Type') # Example spectral type
+    header['CUNIT3'] = ('km/s', 'Units of spectral axis')
+    header['CRVAL3'] = (float(header['CRVAL3'])*0.001,
+                        'Velocity at reference pixel')
+    header['CDELT3'] = (float(header['CDELT3'])*0.001,
+                        'Channel sep, km/sec')
+    fits.writeto( args.output_cube, cube_data, header, overwrite=True)
 
 # show maximum and minum values in resulting cube
     cshape = cube_data.shape
